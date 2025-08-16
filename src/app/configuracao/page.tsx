@@ -4,46 +4,12 @@
 import { useState, useEffect } from "react";
 import type { Produto } from "@/types";
 import { carregarProdutos, salvarProdutos } from "@/utils/storage";
-import { FaDownload, FaUpload, FaSync, FaInfoCircle } from "react-icons/fa";
+import { FaDownload, FaUpload, FaSync } from "react-icons/fa";
+import { isProdutoArray } from "@/lib/validacao";
+import InstrucoesSincronizacao from "@/components/InstrucoesSincronizacao";
+import BotaoDownloadGitHub from "@/components/BotaoDownloadGitHub";
 
-const GITHUB_JSON_URL = "https://raw.githubusercontent.com/seu-usuario/seu-repo/main/banco_produtos.json";
-
-function hasProperty<T extends object>(obj: T, key: PropertyKey): key is keyof T {
-  return obj.hasOwnProperty(key);
-}
-
-// ✅ Type Guard: Verifica se um objeto é um Produto
-function isProduto(obj: unknown): obj is Produto {
-  return (
-    typeof obj === "object" &&
-    obj !== null &&
-    "nome" in obj &&
-    typeof obj.nome === "string" &&
-    "quantidade" in obj &&
-    typeof obj.quantidade === "number" &&
-    "valorUnitario" in obj &&
-    typeof obj.valorUnitario === "number" &&
-    "dataCompra" in obj &&
-    typeof obj.dataCompra === "string" &&
-    ["marca", "unidade", "mercado"].every((key) => {
-      return !hasProperty(obj, key) || typeof obj[key] === "string" || obj[key] === undefined;
-    }) &&
-    "id" in obj && (typeof obj.id === "string")
-  );
-}
-
-// ✅ Type Guard: Verifica se é um array de Produtos
-function isProdutoArray(data: unknown): data is Produto[] {
-  return Array.isArray(data) && data.every(isProduto);
-}
-
-// ✅ Função segura para parse de JSON com validação
-function parseAndValidateProdutos(rawData: unknown): Produto[] {
-  if (!isProdutoArray(rawData)) {
-    throw new Error("O dado fornecido não é um array válido de produtos.");
-  }
-  return rawData;
-}
+const GITHUB_RAW_URL = "https://raw.githubusercontent.com/Bosguega/controle_precos/master/banco_produtos.json";
 
 export default function Configuracao() {
   const [versaoLocal, setVersaoLocal] = useState<string | null>(null);
@@ -68,11 +34,14 @@ export default function Configuracao() {
     setCarregando(true);
     setErro(null);
     try {
-      const res = await fetch(GITHUB_JSON_URL + "?t=" + new Date().getTime());
+      const res = await fetch(GITHUB_RAW_URL + "?t=" + new Date().getTime());
       if (!res.ok) throw new Error("Arquivo não encontrado no GitHub");
 
       const rawData = await res.json();
-      parseAndValidateProdutos(rawData); // Valida antes de usar
+
+      if (!isProdutoArray(rawData)) {
+        throw new Error("Formato de dados inválido");
+      }
 
       const dados: Produto[] = rawData;
       if (dados.length > 0) {
@@ -82,7 +51,7 @@ export default function Configuracao() {
       } else {
         setVersaoRemota("Vazio");
       }
-    } catch (err) {
+    } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Erro desconhecido";
       setErro("Falha ao verificar versão remota: " + message);
       setVersaoRemota("Erro");
@@ -91,39 +60,7 @@ export default function Configuracao() {
     }
   };
 
-  // Atualizar manualmente do GitHub
-  const atualizarManual = async () => {
-    if (!confirm("Deseja atualizar o banco com os dados do GitHub? Isso substituirá os dados locais.")) return;
-    setCarregando(true);
-    setErro(null);
-    try {
-      const res = await fetch(GITHUB_JSON_URL + "?t=" + new Date().getTime());
-      if (!res.ok) throw new Error("Falha ao baixar o banco");
-
-      const rawData = await res.json();
-      const dadosValidos = parseAndValidateProdutos(rawData);
-
-      const dados: Produto[] = dadosValidos.map((p) => ({
-        ...p,
-        id: p.id || crypto.randomUUID(),
-      }));
-
-      salvarProdutos(dados);
-      setVersaoLocal(
-        dados.length > 0
-          ? new Date(Math.max(...dados.map((p) => new Date(p.dataCompra).getTime()))).toLocaleDateString("pt-BR")
-          : "Atualizado"
-      );
-      alert("Banco atualizado com sucesso do GitHub!");
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Erro desconhecido";
-      setErro("Erro ao atualizar do GitHub: " + message);
-    } finally {
-      setCarregando(false);
-    }
-  };
-
-  // Exportar banco
+  // Exportar
   const handleExportar = () => {
     const dados = carregarProdutos();
     const blob = new Blob([JSON.stringify(dados, null, 2)], { type: "application/json" });
@@ -135,19 +72,21 @@ export default function Configuracao() {
     URL.revokeObjectURL(url);
   };
 
-  // Importar banco
+  // Importar
   const handleImportar = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
         const conteudo = event.target?.result as string;
         const rawData = JSON.parse(conteudo);
-        const dadosValidos = parseAndValidateProdutos(rawData);
 
-        const dados: Produto[] = dadosValidos.map((p) => ({
+        if (!isProdutoArray(rawData)) {
+          throw new Error("O arquivo JSON não contém uma lista de produtos válidos.");
+        }
+
+        const dados: Produto[] = rawData.map((p) => ({
           ...p,
           id: p.id || crypto.randomUUID(),
         }));
@@ -159,36 +98,13 @@ export default function Configuracao() {
             : "Importado"
         );
         alert("Banco importado com sucesso!");
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Arquivo inválido ou corrompido.";
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : "Arquivo inválido.";
         alert("Erro ao importar: " + message);
       }
     };
     reader.readAsText(file);
   };
-
-  // Atualização automática
-  const ativarAtualizacaoAutomatica = () => {
-    if (!confirm("Ativar atualização automática? O banco será atualizado do GitHub ao abrir esta tela.")) return;
-    localStorage.setItem("autoUpdateEnabled", "true");
-    alert("Atualização automática ativada!");
-  };
-
-  const desativarAtualizacaoAutomatica = () => {
-    localStorage.setItem("autoUpdateEnabled", "false");
-    alert("Atualização automática desativada!");
-  };
-
-  const autoUpdateEnabled = localStorage.getItem("autoUpdateEnabled") === "true";
-
-  useEffect(() => {
-    if (autoUpdateEnabled) {
-      const timer = setTimeout(() => {
-        atualizarManual();
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
-  }, );
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
@@ -199,11 +115,11 @@ export default function Configuracao() {
         </div>
 
         <div className="p-6 space-y-8">
+          <InstrucoesSincronizacao />
+
           {/* Versão do Banco */}
-          <div className="bg-blue-50 p-6 rounded-lg border border-blue-200">
-            <h2 className="text-xl font-semibold text-blue-800 mb-4 flex items-center gap-2">
-              <FaInfoCircle /> Versão do Banco
-            </h2>
+          <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
+            <h2 className="text-xl font-semibold text-gray-800 mb-4">📅 Versão do Banco</h2>
             <div className="space-y-2 text-sm">
               <p><strong>Local:</strong> {versaoLocal || "Carregando..."}</p>
               <p><strong>GitHub:</strong> {versaoRemota || "Não verificada"}</p>
@@ -222,7 +138,7 @@ export default function Configuracao() {
           <div className="bg-green-50 p-6 rounded-lg border border-green-200">
             <h2 className="text-xl font-semibold text-green-800 mb-4">📤 Exportar Banco</h2>
             <p className="text-sm text-green-700 mb-4">
-              Baixe uma cópia do seu banco de dados para salvar ou compartilhar.
+              Salve uma cópia do seu banco de dados para subir no GitHub.
             </p>
             <button
               onClick={handleExportar}
@@ -236,7 +152,7 @@ export default function Configuracao() {
           <div className="bg-purple-50 p-6 rounded-lg border border-purple-200">
             <h2 className="text-xl font-semibold text-purple-800 mb-4">📥 Importar Banco</h2>
             <p className="text-sm text-purple-700 mb-4">
-              Substitua seu banco atual com um arquivo JSON.
+              Carregue um banco de dados salvo.
             </p>
             <label className="flex items-center gap-2 px-5 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 cursor-pointer">
               <FaUpload /> Selecionar Arquivo
@@ -244,58 +160,11 @@ export default function Configuracao() {
             </label>
           </div>
 
-          {/* Atualização Manual */}
-          <div className="bg-orange-50 p-6 rounded-lg border border-orange-200">
-            <h2 className="text-xl font-semibold text-orange-800 mb-4">🔁 Atualização Manual</h2>
-            <p className="text-sm text-orange-700 mb-4">
-              Atualize seu banco com os dados do GitHub.
-            </p>
-            <button
-              onClick={atualizarManual}
-              disabled={carregando}
-              className="flex items-center gap-2 px-5 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50"
-            >
-              <FaSync /> Atualizar do GitHub
-            </button>
-          </div>
-
-          {/* Atualização Automática */}
-          <div className="bg-indigo-50 p-6 rounded-lg border border-indigo-200">
-            <h2 className="text-xl font-semibold text-indigo-800 mb-4">⚙️ Atualização Automática</h2>
-            <p className="text-sm text-indigo-700 mb-4">
-              {autoUpdateEnabled
-                ? "✅ Ativada: o banco será atualizado automaticamente ao abrir esta tela."
-                : "❌ Desativada: clique para ativar."}
-            </p>
-            <div className="flex gap-4">
-              <button
-                onClick={ativarAtualizacaoAutomatica}
-                disabled={autoUpdateEnabled}
-                className={`px-5 py-2 rounded text-white ${
-                  autoUpdateEnabled
-                    ? "bg-gray-400 cursor-not-allowed"
-                    : "bg-indigo-600 hover:bg-indigo-700"
-                }`}
-              >
-                Ativar
-              </button>
-              <button
-                onClick={desativarAtualizacaoAutomatica}
-                disabled={!autoUpdateEnabled}
-                className={`px-5 py-2 rounded text-white ${
-                  !autoUpdateEnabled
-                    ? "bg-gray-400 cursor-not-allowed"
-                    : "bg-red-600 hover:bg-red-700"
-                }`}
-              >
-                Desativar
-              </button>
-            </div>
-          </div>
+          <BotaoDownloadGitHub />
         </div>
 
         <div className="p-4 bg-gray-50 text-center text-sm text-gray-400 border-t">
-          Gerenciamento de dados offline
+          Gerenciamento offline • Banco de dados em JSON
         </div>
       </div>
     </div>
