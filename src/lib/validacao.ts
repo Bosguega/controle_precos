@@ -1,4 +1,3 @@
-// src/lib/validacao.ts
 import type { Produto } from "@/types";
 
 // Função auxiliar para verificar se uma chave existe (sem risco de prototype pollution)

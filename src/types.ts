@@ -6,6 +6,6 @@ export interface Produto {
   marca: string;
   valorUnitario: number;
   valorTotal: number;
-  dataCompra: string;
+  dataCompra: Date | string;
   mercado: string;
 }

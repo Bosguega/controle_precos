@@ -1,4 +1,3 @@
-// src/components/InstrucoesSincronizacao.tsx
 "use client";
 
 import { FaInfoCircle } from "react-icons/fa";

@@ -1,27 +1,22 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import type { Produto } from "@/types";
-import { carregarProdutos, removerProduto } from "@/utils/storage";
+import { useState } from "react";
 import { FaSearch, FaTrash } from "react-icons/fa";
+import { useProdutosOffline } from "@/hooks/useProdutosOffline";
+import StatusOffline from "@/components/StatusOffline";
 
 export default function Pesquisa() {
-  const [produtos, setProdutos] = useState<Produto[]>([]);
+  const { produtos, deleteProduto, loading, error, isOnline, syncPending } = useProdutosOffline();
+  const [syncing, setSyncing] = useState(false);
   const [filtro, setFiltro] = useState("");
 
-  useEffect(() => {
-    const dados = carregarProdutos();
-    setProdutos(dados);
-  }, []);
-
-  if (typeof window === "undefined") {
-    return <div className="p-8 text-center text-gray-500">Carregando...</div>;
-  }
-
-  const handleExcluir = (id: string) => {
+  const handleExcluir = async (id: string) => {
     if (!confirm("Tem certeza que deseja excluir este produto?")) return;
-    removerProduto(id);
-    setProdutos((prev) => prev.filter((p) => p.id !== id));
+    try {
+      await deleteProduto(id);
+    } catch (err) {
+      alert(`Erro ao excluir produto: ${err instanceof Error ? err.message : 'Erro desconhecido'}`);
+    }
   };
 
   const produtosFiltrados = produtos.filter((p) =>
@@ -30,6 +25,17 @@ export default function Pesquisa() {
 
   const formatarMoeda = (valor: number) =>
     valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Carregando produtos...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 py-8 px-4">
@@ -87,7 +93,12 @@ export default function Pesquisa() {
                     <td className="px-4 py-3 text-sm text-gray-600">{p.unidade}</td>
                     <td className="px-4 py-3 text-sm text-gray-800 font-medium font-mono">{formatarMoeda(p.valorUnitario)}</td>
                     <td className="px-4 py-3 text-sm text-gray-800 font-medium font-mono">{formatarMoeda(p.valorTotal)}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{p.dataCompra}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600">
+                      {typeof p.dataCompra === 'string' 
+                        ? new Date(p.dataCompra).toLocaleDateString('pt-BR')
+                        : p.dataCompra.toLocaleDateString('pt-BR')
+                      }
+                    </td>
                     <td className="px-4 py-3 text-sm text-gray-600">{p.mercado || "-"}</td>
                     <td className="px-4 py-3 text-center">
                       <button
@@ -108,7 +119,27 @@ export default function Pesquisa() {
         <div className="p-4 bg-gray-50 text-center text-sm text-gray-400 border-t">
           Total de produtos cadastrados: {produtos.length}
         </div>
+
+        {/* Mensagem de erro */}
+        {error && (
+          <div className="p-4 bg-red-50 border-l-4 border-red-400 text-red-700">
+            <p className="font-medium">Erro:</p>
+            <p>{error}</p>
+          </div>
+        )}
       </div>
+
+      {/* Status Offline */}
+      <StatusOffline 
+        isOnline={isOnline}
+        pendingCount={produtos.filter(p => p._pendingSync).length}
+        onSync={async () => {
+          setSyncing(true);
+          await syncPending();
+          setSyncing(false);
+        }}
+        syncing={syncing}
+      />
     </div>
   );
 }

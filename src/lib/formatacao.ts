@@ -1,5 +1,3 @@
-// src/lib/formatacao.ts
-
 export function parseMoeda(valor: string): number {
   if (!valor) return 0;
   let clean = valor.replace(/[R$\s]/g, "");

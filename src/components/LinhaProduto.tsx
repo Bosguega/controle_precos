@@ -1,4 +1,3 @@
-// src/components/LinhaProduto.tsx
 "use client";
 
 import type { Produto } from "@/types"; // ✅ Importe a interface
@@ -124,7 +123,10 @@ export default function LinhaProduto({
       <td className="px-4 py-2">
         <input
           type="date"
-          value={produto.dataCompra}
+          value={typeof produto.dataCompra === 'string' 
+            ? produto.dataCompra.split('T')[0]
+            : produto.dataCompra.toISOString().split('T')[0]
+          }
           onChange={(e) => onChange(index, "dataCompra", e.target.value)}
           className={`w-full px-2 py-1 border rounded outline-none text-sm ${
             isActive ? "ring-1 ring-blue-300" : "border-gray-300"

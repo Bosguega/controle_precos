@@ -1,20 +1,23 @@
-// src/app/cadastro/page.tsx
 "use client";
 
 import { useState } from "react";
 import type { Produto } from "@/types";
-import { salvarProdutos } from "@/utils/storage";
 import { FaPlus, FaSave } from "react-icons/fa";
 import { parseMoeda } from "@/lib/formatacao";
 import { produtoPadrao } from "@/lib/produtoPadrao";
 import TabelaProdutos from "@/components/TabelaProdutos";
+import { useProdutosOffline } from "@/hooks/useProdutosOffline";
+import StatusOffline from "@/components/StatusOffline";
 
 export default function Cadastro() {
+  const { addProduto, error, isOnline, syncPending } = useProdutosOffline();
+  const [syncing, setSyncing] = useState(false);
   const [produtos, setProdutos] = useState<Produto[]>([produtoPadrao()]);
   const [erros, setErros] = useState<boolean[]>([false]);
   const [linhaAtiva, setLinhaAtiva] = useState<number | null>(null);
   const [campoEditando, setCampoEditando] = useState<{ linha: number; campo: string } | null>(null);
   const [valoresEditando, setValoresEditando] = useState<{ [key: string]: string }>({});
+  const [salvando, setSalvando] = useState(false);
 
   const handleChange = (index: number, field: keyof Produto, value: string | number) => {
     const newProdutos = [...produtos];
@@ -76,18 +79,31 @@ export default function Cadastro() {
     if (linhaAtiva === index) setLinhaAtiva(null);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const invalidos = produtos.map((p) => !p.nome.trim());
     setErros(invalidos);
     if (invalidos.some(Boolean)) {
       alert("Corrija os produtos com nome vazio antes de salvar.");
       return;
     }
-    salvarProdutos(produtos);
-    alert(`${produtos.length} produto(s) salvos com sucesso!`);
-    setProdutos([produtoPadrao()]);
-    setErros([false]);
-    setLinhaAtiva(null);
+
+    setSalvando(true);
+    try {
+      // Salvar cada produto individualmente
+      for (const produto of produtos) {
+        const { id: _, ...dadosProduto } = produto;
+        await addProduto(dadosProduto);
+      }
+      
+      alert(`${produtos.length} produto(s) salvos com sucesso!`);
+      setProdutos([produtoPadrao()]);
+      setErros([false]);
+      setLinhaAtiva(null);
+    } catch (err) {
+      alert(`Erro ao salvar produtos: ${err instanceof Error ? err.message : 'Erro desconhecido'}`);
+    } finally {
+      setSalvando(false);
+    }
   };
 
   return (
@@ -116,18 +132,40 @@ export default function Cadastro() {
         <div className="p-6 flex flex-wrap gap-4 justify-center border-t bg-gray-50">
           <button
             onClick={handleAdd}
-            className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 shadow"
+            disabled={salvando}
+            className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 shadow disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <FaPlus /> Adicionar Linha
           </button>
           <button
             onClick={handleSubmit}
-            className="flex items-center gap-2 px-5 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 shadow"
+            disabled={salvando}
+            className="flex items-center gap-2 px-5 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 shadow disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <FaSave /> Salvar Produtos
+            <FaSave /> {salvando ? 'Salvando...' : 'Salvar Produtos'}
           </button>
         </div>
+
+        {/* Mensagem de erro */}
+        {error && (
+          <div className="p-4 bg-red-50 border-l-4 border-red-400 text-red-700">
+            <p className="font-medium">Erro:</p>
+            <p>{error}</p>
+          </div>
+        )}
       </div>
+
+      {/* Status Offline */}
+      <StatusOffline 
+        isOnline={isOnline}
+        pendingCount={0} // Será implementado depois
+        onSync={async () => {
+          setSyncing(true);
+          await syncPending();
+          setSyncing(false);
+        }}
+        syncing={syncing}
+      />
     </div>
   );
 }

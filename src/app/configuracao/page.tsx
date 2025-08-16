@@ -1,17 +1,20 @@
-// src/app/configuracao/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
 import type { Produto } from "@/types";
-import { carregarProdutos, salvarProdutos } from "@/utils/storage";
 import { FaDownload, FaUpload, FaSync } from "react-icons/fa";
 import { isProdutoArray } from "@/lib/validacao";
 import InstrucoesSincronizacao from "@/components/InstrucoesSincronizacao";
 import BotaoDownloadGitHub from "@/components/BotaoDownloadGitHub";
+import SincronizacaoGitHub from "@/components/SincronizacaoGitHub";
+import { useProdutosOffline } from "@/hooks/useProdutosOffline";
+import StatusOffline from "@/components/StatusOffline";
 
 const GITHUB_RAW_URL = "https://raw.githubusercontent.com/Bosguega/controle_precos/master/banco_produtos.json";
 
 export default function Configuracao() {
+  const { produtos, addProduto, loading, error, isOnline, syncPending } = useProdutosOffline();
+  const [syncing, setSyncing] = useState(false);
   const [versaoLocal, setVersaoLocal] = useState<string | null>(null);
   const [versaoRemota, setVersaoRemota] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(false);
@@ -19,7 +22,6 @@ export default function Configuracao() {
 
   // Carrega a versão local
   useEffect(() => {
-    const produtos = carregarProdutos();
     if (produtos.length > 0) {
       const datas = produtos.map((p) => new Date(p.dataCompra)).sort((a, b) => +b - +a);
       const ultima = datas[0];
@@ -27,7 +29,7 @@ export default function Configuracao() {
     } else {
       setVersaoLocal("Sem produtos");
     }
-  }, []);
+  }, [produtos]);
 
   // Verifica versão remota
   const verificarAtualizacao = async () => {
@@ -62,8 +64,7 @@ export default function Configuracao() {
 
   // Exportar
   const handleExportar = () => {
-    const dados = carregarProdutos();
-    const blob = new Blob([JSON.stringify(dados, null, 2)], { type: "application/json" });
+    const blob = new Blob([JSON.stringify(produtos, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -72,12 +73,27 @@ export default function Configuracao() {
     URL.revokeObjectURL(url);
   };
 
+  // Sincronizar com GitHub
+  const handleSincronizarGitHub = async () => {
+    try {
+      // Exportar dados atuais
+      const dadosExport = await fetch('/api/produtos/export');
+      const produtosAtuais = await dadosExport.json();
+      
+      // Aqui você pode implementar a lógica para subir para o GitHub
+      // Por exemplo, usando a GitHub API ou um webhook
+      console.log('Dados para sincronizar:', produtosAtuais);
+      
+      alert('Funcionalidade de sincronização com GitHub será implementada em breve!');
+    } catch (error) {
+      alert('Erro ao sincronizar: ' + error);
+    }
+  };
+
   // Importar
-  const handleImportar = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleImportar = async (file: File) => {
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const conteudo = event.target?.result as string;
         const rawData = JSON.parse(conteudo);
@@ -91,7 +107,12 @@ export default function Configuracao() {
           id: p.id || crypto.randomUUID(),
         }));
 
-        salvarProdutos(dados);
+        // Importar cada produto individualmente
+        for (const produto of dados) {
+          const { id, ...dadosProduto } = produto;
+          await addProduto(dadosProduto);
+        }
+
         setVersaoLocal(
           dados.length > 0
             ? new Date(Math.max(...dados.map((p) => new Date(p.dataCompra).getTime()))).toLocaleDateString("pt-BR")
@@ -134,39 +155,39 @@ export default function Configuracao() {
             {erro && <p className="text-red-500 text-sm mt-2">{erro}</p>}
           </div>
 
-          {/* Exportar */}
-          <div className="bg-green-50 p-6 rounded-lg border border-green-200">
-            <h2 className="text-xl font-semibold text-green-800 mb-4">📤 Exportar Banco</h2>
-            <p className="text-sm text-green-700 mb-4">
-              Salve uma cópia do seu banco de dados para subir no GitHub.
-            </p>
-            <button
-              onClick={handleExportar}
-              className="flex items-center gap-2 px-5 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700"
-            >
-              <FaDownload /> Exportar JSON
-            </button>
-          </div>
-
-          {/* Importar */}
-          <div className="bg-purple-50 p-6 rounded-lg border border-purple-200">
-            <h2 className="text-xl font-semibold text-purple-800 mb-4">📥 Importar Banco</h2>
-            <p className="text-sm text-purple-700 mb-4">
-              Carregue um banco de dados salvo.
-            </p>
-            <label className="flex items-center gap-2 px-5 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 cursor-pointer">
-              <FaUpload /> Selecionar Arquivo
-              <input type="file" accept=".json" onChange={handleImportar} className="sr-only" />
-            </label>
-          </div>
+          {/* Sincronização GitHub */}
+          <SincronizacaoGitHub 
+            onExport={handleExportar}
+            onImport={handleImportar}
+          />
 
           <BotaoDownloadGitHub />
         </div>
 
         <div className="p-4 bg-gray-50 text-center text-sm text-gray-400 border-t">
-          Gerenciamento offline • Banco de dados em JSON
+          Gerenciamento com Prisma • Banco de dados SQLite
         </div>
+
+        {/* Mensagem de erro */}
+        {error && (
+          <div className="p-4 bg-red-50 border-l-4 border-red-400 text-red-700">
+            <p className="font-medium">Erro:</p>
+            <p>{error}</p>
+          </div>
+        )}
       </div>
+
+      {/* Status Offline */}
+      <StatusOffline 
+        isOnline={isOnline}
+        pendingCount={produtos.filter(p => p._pendingSync).length}
+        onSync={async () => {
+          setSyncing(true);
+          await syncPending();
+          setSyncing(false);
+        }}
+        syncing={syncing}
+      />
     </div>
   );
 }

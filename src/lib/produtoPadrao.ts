@@ -1,4 +1,3 @@
-// src/lib/produtoPadrao.ts
 import type { Produto } from "@/types";
 
 export function produtoPadrao(): Produto {

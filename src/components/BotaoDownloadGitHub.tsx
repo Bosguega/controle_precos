@@ -1,4 +1,3 @@
-// src/components/BotaoDownloadGitHub.tsx
 "use client";
 
 import { FaGithub } from "react-icons/fa";

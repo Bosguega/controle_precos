@@ -1,4 +1,3 @@
-// src/components/TabelaProdutos.tsx
 import type { Produto } from "@/types"; // ✅ Importe a interface
 import LinhaProduto from "@/components/LinhaProduto";
 
