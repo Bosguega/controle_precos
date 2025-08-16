@@ -1,0 +1,57 @@
+[
+  {
+    "id": "4453a3c7-2ca3-47ba-9e46-29a41bf6e566",
+    "quantidade": 1,
+    "unidade": "5kg",
+    "nome": "Arroz",
+    "marca": "Tio Joao",
+    "valorUnitario": 30,
+    "valorTotal": 30,
+    "dataCompra": "2025-08-16",
+    "mercado": "Cubatao"
+  },
+  {
+    "id": "e8c3c282-1773-4b7a-98b5-c4263832e148",
+    "quantidade": 1,
+    "unidade": "500g",
+    "nome": "Feijão",
+    "marca": "Come Keto",
+    "valorUnitario": 7,
+    "valorTotal": 7,
+    "dataCompra": "2025-08-16",
+    "mercado": "Cubatao"
+  },
+  {
+    "id": "5d6bd95b-4086-4960-907f-58a14e5b0377",
+    "quantidade": 1,
+    "unidade": "L",
+    "nome": "Leite",
+    "marca": "Shefa",
+    "valorUnitario": 8,
+    "valorTotal": 8,
+    "dataCompra": "2025-08-16",
+    "mercado": "Cubatão"
+  },
+  {
+    "id": "7089294a-43db-45d8-b046-0c21ebe4c95e",
+    "quantidade": 1,
+    "unidade": "un",
+    "nome": "Detergente",
+    "marca": "Ype",
+    "valorUnitario": 2.38,
+    "valorTotal": 2.38,
+    "dataCompra": "2025-08-16",
+    "mercado": "Cubatão"
+  },
+  {
+    "id": "b0662a97-1899-4290-8f94-96327b7e21d1",
+    "quantidade": 1,
+    "unidade": "kg",
+    "nome": "Açúcar",
+    "marca": "União",
+    "valorUnitario": 3.15,
+    "valorTotal": 3.15,
+    "dataCompra": "2025-08-16",
+    "mercado": "Cubatão"
+  }
+]
